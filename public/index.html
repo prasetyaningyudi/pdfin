@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pdfin — Gabung &amp; Pisahkan PDF</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="logo-wrap">
+        <h1 class="logo">pdfin</h1>
+        <p class="tagline">Gabungkan dan pisahkan PDF langsung dari browser</p>
+      </div>
+      <nav class="navbar" role="tablist" aria-label="Fitur PDF">
+        <button class="nav-tab active" id="tab-merge" role="tab" aria-selected="true" aria-controls="panel-merge">Gabungkan</button>
+        <button class="nav-tab" id="tab-split" role="tab" aria-selected="false" aria-controls="panel-split">Pisahkan</button>
+        <button class="nav-tab" id="tab-compress" role="tab" aria-selected="false" aria-controls="panel-compress">Kompres</button>
+        <button class="nav-tab" id="tab-extract" role="tab" aria-selected="false" aria-controls="panel-extract">Ekstrak Teks</button>
+      </nav>
+      <button class="nav-hamburger" aria-label="Buka menu" aria-expanded="false" aria-controls="navbar-menu" hidden>☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <div id="alert" class="alert" hidden></div>
+
+    <!-- MERGE PANEL -->
+    <section id="panel-merge" class="panel active" role="tabpanel" aria-labelledby="tab-merge">
+      <div class="dropzone" id="merge-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Maksimal <span id="merge-limits">20 file / 100 MB</span></p>
+        <input type="file" id="merge-input" accept="application/pdf,.pdf" multiple hidden>
+      </div>
+
+      <ol id="merge-list" class="file-list" hidden></ol>
+
+      <div class="actions">
+        <label class="inline-field">
+          Nama file hasil:
+          <input type="text" id="merge-name" value="hasil-merge.pdf" maxlength="80">
+        </label>
+        <button id="merge-btn" class="btn primary" disabled>Gabungkan</button>
+      </div>
+
+      <div id="merge-result" class="result" hidden>
+        <p>Selesai! File digabung.</p>
+        <a id="merge-download" class="btn success" download>Unduh hasil PDF</a>
+      </div>
+    </section>
+
+    <!-- COMPRESS PANEL -->
+    <section id="panel-compress" class="panel" role="tabpanel" aria-labelledby="tab-compress">
+      <div class="dropzone" id="compress-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Satu file PDF</p>
+        <input type="file" id="compress-input" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="compress-info" class="split-info" hidden>
+        <p><span id="compress-name"></span> — <span id="compress-size" class="badge"></span></p>
+      </div>
+
+      <div id="compress-options" hidden>
+        <div class="actions">
+          <button id="compress-btn" class="btn primary">Kompres</button>
+        </div>
+      </div>
+
+      <div id="compress-result" class="result" hidden>
+        <p id="compress-result-text">Selesai!</p>
+        <p id="compress-ratio" class="hint" hidden></p>
+        <a id="compress-download" class="btn success" download>Unduh hasil PDF</a>
+      </div>
+    </section>
+
+    <!-- SPLIT PANEL -->
+    <section id="panel-split" class="panel" role="tabpanel" aria-labelledby="tab-split">
+      <div class="dropzone" id="split-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Satu file PDF</p>
+        <input type="file" id="split-input" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="split-info" class="split-info" hidden>
+        <p><span id="split-name"></span> — <span id="split-pages" class="badge"></span></p>
+      </div>
+
+      <div id="split-options" hidden>
+        <fieldset class="mode-picker">
+          <legend>Mode pemisahan</legend>
+          <label>
+            <input type="radio" name="split-mode" value="ranges" checked>
+            Rentang halaman <span class="hint">(contoh: 1-3,5,7-9)</span>
+          </label>
+          <input type="text" id="split-ranges" placeholder="1-3,5,7-9" value="1-3">
+          <label>
+            <input type="radio" name="split-mode" value="pages">
+            Setiap halaman jadi file terpisah
+          </label>
+        </fieldset>
+
+        <div class="actions">
+          <button id="split-btn" class="btn primary">Pisahkan</button>
+        </div>
+      </div>
+
+      <div id="split-result" class="result" hidden>
+        <p id="split-result-text">Selesai!</p>
+        <a id="split-download" class="btn success" download>Unduh hasil</a>
+      </div>
+    </section>
+
+    <!-- EXTRACT TEXT PANEL -->
+    <section id="panel-extract" class="panel" role="tabpanel" aria-labelledby="tab-extract">
+      <div class="dropzone" id="extract-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Satu file PDF</p>
+        <input type="file" id="extract-input" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="extract-info" class="split-info" hidden>
+        <p><span id="extract-name"></span> — <span id="extract-pages" class="badge"></span></p>
+      </div>
+
+      <div id="extract-options" hidden>
+        <fieldset class="mode-picker">
+          <legend>Format teks</legend>
+          <label>
+            <input type="radio" name="extract-format" value="layout" checked>
+            Layout Asli (pertahankan spasi/kolom)
+          </label>
+          <label>
+            <input type="radio" name="extract-format" value="clean">
+            Bersih (rapi, spasi standar)
+          </label>
+          <label>
+            <input type="radio" name="extract-format" value="raw">
+            Raw (minimal pemrosesan)
+          </label>
+        </fieldset>
+
+        <div class="actions">
+          <button id="extract-btn" class="btn primary">Ekstrak Teks</button>
+        </div>
+      </div>
+
+      <div id="extract-result" class="result" hidden>
+        <p id="extract-result-text">Selesai! Teks tereksrak.</p>
+        <div class="extract-textarea-wrap">
+          <textarea id="extract-textarea" readonly placeholder="Teks hasil ekstraksi akan muncul di sini..."></textarea>
+          <div class="extract-actions">
+            <button id="extract-copy" class="btn secondary" type="button">Salin</button>
+            <a id="extract-download" class="btn success" download>Unduh .txt</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>File diproses di server dan tidak disimpan permanen.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+services:
+  pdfin:
+    image: pdfin:1.0
+    build: .
+    ports:
+      - "3100:3100"
+    environment:
+      - PORT=3100
+      - MAX_FILES=20
+      - MAX_FILE_MB=50
+      - MAX_TOTAL_MB=100
+      - RATE_WINDOW_MS=60000
+      - RATE_MAX_API=60
+    restart: unless-stopped

@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log*
+server.err.log
+server.out.log
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+.dockerignore
+test
+AGENTS.md
+*.cjs
