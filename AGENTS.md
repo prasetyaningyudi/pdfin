@@ -27,6 +27,8 @@ npm start          # runs node server.js on PORT (default 3100)
 - `POST /api/organize` ? multipart `file` + `order` (JSON array) + `rotations` (JSON object) ? reorder/hapus/rotasi halaman
 - `POST /api/watermark` ? multipart `file` + `text` + `style` (diagonal|center|tiled) + optional `opacity`/`fontSize`/`color` ? PDF
 - `POST /api/page-numbers` ? multipart `file` + optional `format` (`{n}`/`{total}` template) + `position`/`fontSize`/`color` ? PDF
+- `POST /api/compress` ? multipart `file` + optional `quality` (high|medium|low, default medium) ? PDF + headers `X-Compress-Ratio` / `X-Compress-Engine` (gs|lossless|raster|original)
+- `POST /api/extract-text` ? multipart `file` + optional `format` (layout|clean|raw) ? JSON teks
 - `GET /api/config` ? `{ maxFiles, maxFileMb, maxTotalMb }`
 
 ## Key Files
@@ -37,6 +39,7 @@ npm start          # runs node server.js on PORT (default 3100)
 - `src/services/split.js` � split by ranges / per page
 - `src/services/organize.js` — reorder/hapus/rotasi halaman
 - `src/services/decorate.js` — watermark & nomor halaman
+- `src/services/compress.js` — hybrid: Ghostscript → fallback lossless (high) / raster (medium|low)
 - `src/middleware/upload.js` � multer config, PDF validation, size limits
 - `src/middleware/rateLimit.js` � express-rate-limit wrapper
 - `public/` � static SPA (index.html, app.js, style.css)
@@ -54,4 +57,5 @@ npm start          # runs node server.js on PORT (default 3100)
 - Rate limit only on `/api`; static files unrestricted
 - `RATE_MAX_OP` is defined but not used
 - Sample PDFs in `test/` generated via `node test/make-samples.js` (requires pdf-lib)
+- Compress pakai Ghostscript jika ada di PATH (Dockerfile: `apk add ghostscript`); tanpa gs → high = lossless repack, medium/low = raster via `@napi-rs/canvas`
 - No CI, no build step � just `node server.js`

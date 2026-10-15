@@ -409,8 +409,10 @@ compressBtn.addEventListener('click', async () => {
   hideAlert();
   $('#compress-result').hidden = true;
 
+  const quality = (document.querySelector('input[name="compress-quality"]:checked') || {}).value || 'medium';
   const fd = new FormData();
   fd.append('file', state.compressFile);
+  fd.append('quality', quality);
 
   setBusy(compressBtn, true, 'Memproses…');
   try {
@@ -423,14 +425,26 @@ compressBtn.addEventListener('click', async () => {
     const originalSize = parseInt(res.headers.get('X-Original-Size') || '0', 10);
     const compressedSize = parseInt(res.headers.get('X-Compressed-Size') || '0', 10);
     const ratio = res.headers.get('X-Compress-Ratio') || '0%';
+    const engine = res.headers.get('X-Compress-Engine') || '';
 
-    $('#compress-result-text').textContent = 'Selesai! File berhasil dikompres.';
-    if (originalSize && compressedSize) {
-      $('#compress-ratio').textContent = `Ukuran: ${formatSize(originalSize)} → ${formatSize(compressedSize)} (hemat ${ratio})`;
-      $('#compress-ratio').hidden = false;
+    const engineNote = {
+      gs: 'Mesin: Ghostscript — teks tetap bisa dicari.',
+      lossless: 'Mesin: lossless — teks tetap bisa dicari.',
+      raster: 'Mesin: rasterisasi — teks menjadi gambar (tidak bisa dicari).',
+      original: 'File sudah optimal — tidak ada penghematan, dikembalikan seperti aslinya.',
+    }[engine] || '';
+
+    if (engine === 'original') {
+      $('#compress-result-text').textContent = 'Selesai! Tidak ada penghematan untuk file ini.';
+    } else {
+      $('#compress-result-text').textContent = 'Selesai! File berhasil dikompres.';
     }
+
+    const sizeLine = `Ukuran: ${formatSize(originalSize)} → ${formatSize(compressedSize)} (hemat ${ratio})`;
+    $('#compress-ratio').textContent = engineNote ? `${sizeLine} ${engineNote}` : sizeLine;
+    $('#compress-ratio').hidden = false;
     $('#compress-result').hidden = false;
-    showAlert('File berhasil dikompres.', 'info');
+    showAlert('File berhasil diproses.', 'info');
   } catch (err) {
     showAlert(err.message);
   } finally {

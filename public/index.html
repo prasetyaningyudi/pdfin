@@ -197,6 +197,22 @@
       </div>
 
       <div id="compress-options" hidden>
+        <fieldset class="mode-picker">
+          <legend>Kualitas kompresi</legend>
+          <label>
+            <input type="radio" name="compress-quality" value="high">
+            Kualitas terbaik <span class="hint">(teks tetap bisa dicari, ukuran lebih terjaga)</span>
+          </label>
+          <label>
+            <input type="radio" name="compress-quality" value="medium" checked>
+            Seimbang <span class="hint">(ukuran turun, kualitas baik)</span>
+          </label>
+          <label>
+            <input type="radio" name="compress-quality" value="low">
+            Paling kecil <span class="hint">(ukuran paling kecil, kualitas lebih turun)</span>
+          </label>
+        </fieldset>
+
         <div class="actions">
           <button id="compress-btn" class="btn primary">Kompres</button>
         </div>

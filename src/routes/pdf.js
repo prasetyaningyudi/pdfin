@@ -5,7 +5,7 @@ const AdmZip = require('adm-zip');
 const { upload, validatePdfFiles, handleMulterError } = require('../middleware/upload');
 const { mergePdfs, PdfError } = require('../services/merge');
 const { splitByRanges, splitPerPage, getPageSize } = require('../services/split');
-const { compressPdf } = require('../services/compress');
+const { compressPdf, QUALITIES } = require('../services/compress');
 const { extractText } = require('../services/extractText');
 const { organizePages } = require('../services/organize');
 const { addWatermark, addPageNumbers } = require('../services/decorate');
@@ -98,12 +98,14 @@ router.post(
   validatePdfFiles,
   async (req, res, next) => {
     try {
-      const result = await compressPdf(req.file.buffer);
+      const quality = QUALITIES.includes(req.body.quality) ? req.body.quality : 'medium';
+      const result = await compressPdf(req.file.buffer, quality);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="hasil-kompres.pdf"`);
       res.setHeader('X-Original-Size', result.originalSize.toString());
       res.setHeader('X-Compressed-Size', result.compressedSize.toString());
       res.setHeader('X-Compress-Ratio', result.ratio);
+      res.setHeader('X-Compress-Engine', result.engine);
       res.send(result.buffer);
     } catch (err) {
       next(err);
