@@ -32,6 +32,34 @@ function clampNum(value, min, max, fallback) {
   return Math.min(max, Math.max(min, n));
 }
 
+function pageGeom(page) {
+  const { width: pw, height: ph } = page.getSize();
+  const raw = page.getRotation().angle % 360;
+  const norm = raw < 0 ? raw + 360 : raw;
+  const angle = [0, 90, 180, 270].includes(norm) ? norm : 0;
+  const swapped = angle === 90 || angle === 270;
+  return {
+    pw,
+    ph,
+    angle,
+    vw: swapped ? ph : pw,
+    vh: swapped ? pw : ph,
+  };
+}
+
+function visualToPage(g, vx, vy) {
+  switch (g.angle) {
+    case 90:
+      return { x: g.pw - vy, y: vx };
+    case 180:
+      return { x: g.pw - vx, y: g.ph - vy };
+    case 270:
+      return { x: vy, y: g.ph - vx };
+    default:
+      return { x: vx, y: vy };
+  }
+}
+
 async function addWatermark(buffer, opts) {
   const text = String(opts.text || '').trim();
   if (!text) {
@@ -58,45 +86,43 @@ async function addWatermark(buffer, opts) {
 
   try {
     for (const page of pages) {
-      const { width, height } = page.getSize();
-      const size = fontSizeOpt || Math.max(18, Math.floor(Math.min(width, height) / 8));
+      const g = pageGeom(page);
+      const size = fontSizeOpt || Math.max(18, Math.floor(Math.min(g.vw, g.vh) / 8));
       const textWidth = font.widthOfTextAtSize(text, size);
 
       if (style === 'center') {
-        page.drawText(text, {
-          x: (width - textWidth) / 2,
-          y: height / 2 - size / 2,
-          size,
-          font,
-          color,
-          opacity,
-        });
+        const p = visualToPage(g, (g.vw - textWidth) / 2, g.vh / 2 - size / 2);
+        const draw = { x: p.x, y: p.y, size, font, color, opacity };
+        if (g.angle) draw.rotate = degrees(g.angle);
+        page.drawText(text, draw);
       } else if (style === 'diagonal') {
+        const p = visualToPage(g, g.vw / 2 - textWidth / 2, g.vh / 2);
         page.drawText(text, {
-          x: width / 2 - textWidth / 2,
-          y: height / 2,
+          x: p.x,
+          y: p.y,
           size,
           font,
           color,
           opacity,
-          rotate: degrees(45),
+          rotate: degrees(45 + g.angle),
         });
       } else {
         const stepX = textWidth + size * 2;
         const stepY = size * 5;
         if (stepX > 0 && stepY > 0) {
           let row = 0;
-          for (let y = stepY; y < height && row * (Math.ceil(width / stepX) + 1) < MAX_TILE_LOOPS; y += stepY) {
+          for (let vy = stepY; vy < g.vh && row * (Math.ceil(g.vw / stepX) + 1) < MAX_TILE_LOOPS; vy += stepY) {
             const offset = row % 2 === 0 ? 0 : stepX / 2;
-            for (let x = -stepX; x < width + stepX; x += stepX) {
+            for (let vx = -stepX; vx < g.vw + stepX; vx += stepX) {
+              const p = visualToPage(g, vx + offset, vy);
               page.drawText(text, {
-                x: x + offset,
-                y,
+                x: p.x,
+                y: p.y,
                 size,
                 font,
                 color,
                 opacity: Math.min(opacity, 0.35),
-                rotate: degrees(30),
+                rotate: degrees(30 + g.angle),
               });
             }
             row += 1;
@@ -150,37 +176,40 @@ async function addPageNumbers(buffer, opts) {
         .replace(/\{n\}/g, String(i + 1))
         .replace(/\{total\}/g, String(total));
       const w = font.widthOfTextAtSize(text, fontSize);
-      const { width, height } = page.getSize();
+      const g = pageGeom(page);
 
-      let x;
-      let y;
+      let vx;
+      let vy;
       switch (position) {
         case 'bottom-left':
-          x = margin;
-          y = margin;
+          vx = margin;
+          vy = margin;
           break;
         case 'bottom-right':
-          x = width - w - margin;
-          y = margin;
+          vx = g.vw - w - margin;
+          vy = margin;
           break;
         case 'top-center':
-          x = (width - w) / 2;
-          y = height - margin - fontSize;
+          vx = (g.vw - w) / 2;
+          vy = g.vh - margin - fontSize;
           break;
         case 'top-left':
-          x = margin;
-          y = height - margin - fontSize;
+          vx = margin;
+          vy = g.vh - margin - fontSize;
           break;
         case 'top-right':
-          x = width - w - margin;
-          y = height - margin - fontSize;
+          vx = g.vw - w - margin;
+          vy = g.vh - margin - fontSize;
           break;
         default:
-          x = (width - w) / 2;
-          y = margin;
+          vx = (g.vw - w) / 2;
+          vy = margin;
       }
 
-      page.drawText(text, { x, y, size: fontSize, font, color });
+      const p = visualToPage(g, vx, vy);
+      const draw = { x: p.x, y: p.y, size: fontSize, font, color };
+      if (g.angle) draw.rotate = degrees(g.angle);
+      page.drawText(text, draw);
     });
     return Buffer.from(await doc.save());
   } catch (err) {
