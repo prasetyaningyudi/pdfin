@@ -17,7 +17,8 @@ async function testExtractText(format) {
     Buffer.from(footer)
   ]);
   
-  const response = await fetch('http://127.0.0.1:3001/api/extract-text', {
+  const port = process.env.PORT || 3100;
+  const response = await fetch(`http://127.0.0.1:${port}/api/extract-text`, {
     method: 'POST',
     headers: {
       'Content-Type': `multipart/form-data; boundary=${boundary}`,

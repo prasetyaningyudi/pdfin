@@ -21,9 +21,12 @@ npm start          # runs node server.js on PORT (default 3100)
 | TRUST_PROXY | 0 | Express trust proxy setting |
 
 ## API Endpoints
-- `POST /api/merge` � multipart `files[]` (2+ PDFs) ? merged PDF
-- `POST /api/split` � multipart `file` + `mode` (ranges|pages) + optional `ranges` ? PDF or ZIP
-- `POST /api/pagecount` � multipart `file` ? `{ pages, name }`
+- `POST /api/merge` ? multipart `files[]` (2+ PDFs) ? merged PDF
+- `POST /api/split` ? multipart `file` + `mode` (ranges|pages) + optional `ranges` ? PDF or ZIP
+- `POST /api/pagecount` ? multipart `file` ? `{ pages, name }`
+- `POST /api/organize` ? multipart `file` + `order` (JSON array) + `rotations` (JSON object) ? reorder/hapus/rotasi halaman
+- `POST /api/watermark` ? multipart `file` + `text` + `style` (diagonal|center|tiled) + optional `opacity`/`fontSize`/`color` ? PDF
+- `POST /api/page-numbers` ? multipart `file` + optional `format` (`{n}`/`{total}` template) + `position`/`fontSize`/`color` ? PDF
 - `GET /api/config` ? `{ maxFiles, maxFileMb, maxTotalMb }`
 
 ## Key Files
@@ -32,6 +35,8 @@ npm start          # runs node server.js on PORT (default 3100)
 - `src/routes/pdf.js` � API route handlers
 - `src/services/merge.js` � merge logic, `PdfError` class
 - `src/services/split.js` � split by ranges / per page
+- `src/services/organize.js` — reorder/hapus/rotasi halaman
+- `src/services/decorate.js` — watermark & nomor halaman
 - `src/middleware/upload.js` � multer config, PDF validation, size limits
 - `src/middleware/rateLimit.js` � express-rate-limit wrapper
 - `public/` � static SPA (index.html, app.js, style.css)

@@ -41,6 +41,11 @@ app.get('/api/config', (req, res) => {
   res.json({ maxFiles: MAX_FILES, maxFileMb: MAX_FILE_MB, maxTotalMb: MAX_TOTAL_MB });
 });
 
+app.use(
+  '/vendor/pdfjs',
+  express.static(path.join(__dirname, 'node_modules', 'pdfjs-dist', 'legacy', 'build'))
+);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/api', (req, res) => {

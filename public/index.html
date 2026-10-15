@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>pdfin — Gabung &amp; Pisahkan PDF</title>
+  <title>pdfin — Gabung, Pisahkan &amp; Edit PDF</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,11 +11,13 @@
     <div class="container header-inner">
       <div class="logo-wrap">
         <h1 class="logo">pdfin</h1>
-        <p class="tagline">Gabungkan dan pisahkan PDF langsung dari browser</p>
+        <p class="tagline">Kelola PDF Sederhana</p>
       </div>
       <nav class="navbar" role="tablist" aria-label="Fitur PDF">
         <button class="nav-tab active" id="tab-merge" role="tab" aria-selected="true" aria-controls="panel-merge">Gabungkan</button>
         <button class="nav-tab" id="tab-split" role="tab" aria-selected="false" aria-controls="panel-split">Pisahkan</button>
+        <button class="nav-tab" id="tab-organize" role="tab" aria-selected="false" aria-controls="panel-organize">Atur Halaman</button>
+        <button class="nav-tab" id="tab-decorate" role="tab" aria-selected="false" aria-controls="panel-decorate">Watermark &amp; Nomor</button>
         <button class="nav-tab" id="tab-compress" role="tab" aria-selected="false" aria-controls="panel-compress">Kompres</button>
         <button class="nav-tab" id="tab-extract" role="tab" aria-selected="false" aria-controls="panel-extract">Ekstrak Teks</button>
       </nav>
@@ -48,6 +50,137 @@
       <div id="merge-result" class="result" hidden>
         <p>Selesai! File digabung.</p>
         <a id="merge-download" class="btn success" download>Unduh hasil PDF</a>
+      </div>
+    </section>
+
+    <!-- ORGANIZE PANEL -->
+    <section id="panel-organize" class="panel" role="tabpanel" aria-labelledby="tab-organize">
+      <div class="dropzone" id="organize-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Satu file PDF — susun ulang, hapus, dan putar halaman</p>
+        <input type="file" id="organize-input" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="organize-info" class="split-info" hidden>
+        <p><span id="organize-name"></span> — <span id="organize-pages" class="badge"></span></p>
+        <p class="hint">Klik ↻ untuk memutar halaman, ✕ untuk menghapus, ↑↓ untuk menggeser urutan.</p>
+      </div>
+
+      <div id="organize-grid" class="page-grid" hidden></div>
+
+      <div id="organize-options" class="actions" hidden>
+        <label class="inline-field">
+          Nama file hasil:
+          <input type="text" id="organize-filename" value="hasil-atur-halaman.pdf" maxlength="80">
+        </label>
+        <button id="organize-reset" class="btn secondary" type="button">Reset</button>
+        <button id="organize-btn" class="btn primary">Proses</button>
+      </div>
+
+      <div id="organize-result" class="result" hidden>
+        <p>Selesai! Halaman berhasil diatur.</p>
+        <a id="organize-download" class="btn success" download>Unduh hasil PDF</a>
+      </div>
+    </section>
+
+    <!-- DECORATE PANEL -->
+    <section id="panel-decorate" class="panel" role="tabpanel" aria-labelledby="tab-decorate">
+      <div class="dropzone" id="decorate-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Satu file PDF — tambah watermark dan/atau nomor halaman</p>
+        <input type="file" id="decorate-input" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="decorate-info" class="split-info" hidden>
+        <p><span id="decorate-name"></span> — <span id="decorate-pages" class="badge"></span></p>
+      </div>
+
+      <div id="decorate-options" hidden>
+        <fieldset class="mode-picker">
+          <legend>Jenis edit</legend>
+          <label><input type="radio" name="decorate-mode" value="watermark" checked> Watermark saja</label>
+          <label><input type="radio" name="decorate-mode" value="numbers"> Nomor halaman saja</label>
+          <label><input type="radio" name="decorate-mode" value="both"> Watermark + nomor halaman</label>
+        </fieldset>
+
+        <fieldset class="mode-picker" id="decorate-watermark-fields">
+          <legend>Pengaturan watermark</legend>
+          <label class="inline-field">
+            Teks watermark:
+            <input type="text" id="wm-text" value="RAHASIA" maxlength="200">
+          </label>
+          <label class="inline-field">
+            Posisi:
+            <select id="wm-style">
+              <option value="diagonal">Diagonal</option>
+              <option value="center">Di tengah</option>
+              <option value="tiled">Berulang (tiled)</option>
+            </select>
+          </label>
+          <label class="inline-field">
+            Opasitas: <span id="wm-opacity-val" class="hint">25%</span>
+            <input type="range" id="wm-opacity" min="5" max="100" value="25">
+          </label>
+          <label class="inline-field">
+            Warna:
+            <input type="color" id="wm-color" value="#999999">
+          </label>
+          <label class="inline-field">
+            Ukuran font (opsional, kosongkan untuk otomatis):
+            <input type="number" id="wm-size" min="8" max="200" placeholder="otomatis">
+          </label>
+        </fieldset>
+
+        <fieldset class="mode-picker" id="decorate-numbers-fields">
+          <legend>Pengaturan nomor halaman</legend>
+          <label class="inline-field">
+            Format:
+            <select id="pn-format">
+              <option value="{n}">1</option>
+              <option value="{n}/{total}">1/N</option>
+              <option value="Halaman {n} dari {total}">Halaman 1 dari N</option>
+            </select>
+          </label>
+          <label class="inline-field">
+            Posisi:
+            <select id="pn-position">
+              <option value="bottom-center">Bawah tengah</option>
+              <option value="bottom-right">Bawah kanan</option>
+              <option value="bottom-left">Bawah kiri</option>
+              <option value="top-center">Atas tengah</option>
+              <option value="top-right">Atas kanan</option>
+              <option value="top-left">Atas kiri</option>
+            </select>
+          </label>
+          <label class="inline-field">
+            Warna:
+            <input type="color" id="pn-color" value="#1a1a1a">
+          </label>
+          <label class="inline-field">
+            Ukuran font:
+            <input type="number" id="pn-size" min="6" max="72" value="10">
+          </label>
+        </fieldset>
+
+        <div class="preview-wrap">
+          <p class="hint">Preview (halaman pertama):</p>
+          <div class="preview-canvas-box">
+            <canvas id="decorate-preview"></canvas>
+          </div>
+        </div>
+
+        <div class="actions">
+          <label class="inline-field">
+            Nama file hasil:
+            <input type="text" id="decorate-filename" value="hasil-edit.pdf" maxlength="80">
+          </label>
+          <button id="decorate-btn" class="btn primary">Proses</button>
+        </div>
+      </div>
+
+      <div id="decorate-result" class="result" hidden>
+        <p>Selesai! PDF berhasil diedit.</p>
+        <a id="decorate-download" class="btn success" download>Unduh hasil PDF</a>
       </div>
     </section>
 

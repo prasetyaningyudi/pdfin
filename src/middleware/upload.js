@@ -10,7 +10,7 @@ const upload = multer({
   limits: {
     fileSize: MAX_FILE_BYTES,
     files: MAX_FILES,
-    fields: 10,
+    fields: 20,
     parts: MAX_FILES + 10,
   },
 });
