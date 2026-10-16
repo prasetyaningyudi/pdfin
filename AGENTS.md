@@ -29,6 +29,7 @@ npm start          # runs node server.js on PORT (default 3100)
 - `POST /api/page-numbers` ? multipart `file` + optional `format` (`{n}`/`{total}` template) + `position`/`fontSize`/`color` ? PDF
 - `POST /api/compress` ? multipart `file` + optional `quality` (high|medium|low, default medium) ? PDF + headers `X-Compress-Ratio` / `X-Compress-Engine` (gs|lossless|raster|original)
 - `POST /api/extract-text` ? multipart `file` + optional `format` (layout|clean|raw) ? JSON teks
+- `POST /api/highlight` ? multipart `file` + `rects` (JSON array `{page,x,y,w,h}` dalam poin PDF, maks 1000) + optional `color` (hex) / `opacity` ? PDF berhighlight
 - `GET /api/config` ? `{ maxFiles, maxFileMb, maxTotalMb }`
 
 ## Key Files
@@ -40,6 +41,9 @@ npm start          # runs node server.js on PORT (default 3100)
 - `src/services/organize.js` — reorder/hapus/rotasi halaman
 - `src/services/decorate.js` — watermark & nomor halaman
 - `src/services/compress.js` — hybrid: Ghostscript → fallback lossless (high) / raster (medium|low)
+- `src/services/extractText.js` — teks extraction via pdfjs (server-side)
+- `src/services/highlight.js` — gambar rect highlight (pdf-lib), validasi rect
+- `src/utils/` — `errors.js` (HttpError, legacy), `pdf.js`, `async.js` (sebagian tidak dipakai route utama)
 - `src/middleware/upload.js` � multer config, PDF validation, size limits
 - `src/middleware/rateLimit.js` � express-rate-limit wrapper
 - `public/` � static SPA (index.html, app.js, style.css)
@@ -58,4 +62,7 @@ npm start          # runs node server.js on PORT (default 3100)
 - `RATE_MAX_OP` is defined but not used
 - Sample PDFs in `test/` generated via `node test/make-samples.js` (requires pdf-lib)
 - Compress pakai Ghostscript jika ada di PATH (Dockerfile: `apk add ghostscript`); tanpa gs → high = lossless repack, medium/low = raster via `@napi-rs/canvas`
+- `pdfjs-dist` dipakai server-side (extractText, compress) dan client-side: route statis `/vendor/pdfjs` (legacy/build). CSS text layer disalin dari `pdf_viewer.css` ke `style.css` dengan scope `.hl-page .textLayer` — jangan link `pdf_viewer.css` global (membawa `color-scheme: light dark` yang menggelapkan input/select seluruh app)
+- CSP menyertakan `style-src-attr 'unsafe-inline'` — wajib untuk inline style span text layer pdfjs
+- Fitur Sorot Teks: rect dihitung di browser (seleksi cursor / cari kata via text layer), server hanya menggambar; viewer membatasi 200 halaman, cap 1000 highlight
 - No CI, no build step � just `node server.js`

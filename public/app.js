@@ -12,6 +12,10 @@ const state = {
   organizeDoc: null,
   decorateFile: null,
   decorateDoc: null,
+  highlightFile: null,
+  highlightDoc: null,
+  highlightPages: [],
+  highlights: [],
 };
 
 // ---------- util ----------
@@ -1024,3 +1028,503 @@ function updateDecorateFieldVisibility() {
   $('#decorate-watermark-fields').hidden = mode === 'numbers';
   $('#decorate-numbers-fields').hidden = mode === 'watermark';
 }
+
+// ---------- HIGHLIGHT ----------
+
+const HIGHLIGHT_MAX = 1000;
+const HIGHLIGHT_MAX_PAGES = 200;
+
+const highlightDrop = $('#highlight-drop');
+const highlightInput = $('#highlight-input');
+const highlightBtn = $('#highlight-btn');
+const highlightViewer = $('#highlight-viewer');
+const highlightSearchBtn = $('#highlight-search-btn');
+const highlightUndoBtn = $('#highlight-undo');
+const highlightClearBtn = $('#highlight-clear');
+
+let highlightObserver = null;
+let highlightGroupCounter = 0;
+let highlightPdfjsLib = null;
+
+function highlightMode() {
+  const el = document.querySelector('input[name="highlight-mode"]:checked');
+  return el ? el.value : 'cursor';
+}
+
+highlightDrop.addEventListener('click', () => highlightInput.click());
+highlightDrop.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); highlightInput.click(); }
+});
+highlightDrop.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  highlightDrop.classList.add('dragover');
+});
+highlightDrop.addEventListener('dragleave', () => highlightDrop.classList.remove('dragover'));
+highlightDrop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  highlightDrop.classList.remove('dragover');
+  if (e.dataTransfer.files.length) setHighlightFile(e.dataTransfer.files[0]);
+});
+highlightInput.addEventListener('change', () => {
+  if (highlightInput.files.length) setHighlightFile(highlightInput.files[0]);
+  highlightInput.value = '';
+});
+
+async function setHighlightFile(file) {
+  if (!isPdf(file)) {
+    showAlert('File harus PDF.');
+    return;
+  }
+  hideAlert();
+  $('#highlight-result').hidden = true;
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  $('#highlight-name').textContent = file.name;
+  $('#highlight-info').hidden = false;
+  $('#highlight-pages').textContent = 'memeriksa…';
+  $('#highlight-options').hidden = true;
+
+  try {
+    const res = await apiPost('/api/pagecount', fd);
+    const data = await res.json();
+    state.highlightFile = file;
+    $('#highlight-pages').textContent = data.pages + ' halaman';
+    $('#highlight-options').hidden = false;
+    await renderHighlightViewer(file);
+  } catch (err) {
+    state.highlightFile = null;
+    $('#highlight-info').hidden = true;
+    showAlert(err.message);
+  }
+}
+
+async function renderHighlightViewer(file) {
+  const viewer = highlightViewer;
+  if (highlightObserver) {
+    highlightObserver.disconnect();
+    highlightObserver = null;
+  }
+  if (state.highlightDoc) {
+    try { state.highlightDoc.destroy(); } catch (_) { /* already destroyed */ }
+  }
+  viewer.innerHTML = '';
+  viewer.hidden = false;
+  state.highlightDoc = null;
+  state.highlightPages = [];
+  state.highlights = [];
+  highlightGroupCounter = 0;
+  pushHighlight._capped = false;
+  updateHighlightToolbar();
+
+  const loading = document.createElement('p');
+  loading.className = 'hint grid-loading';
+  loading.textContent = 'Menyiapkan viewer…';
+  viewer.appendChild(loading);
+
+  let doc;
+  try {
+    highlightPdfjsLib = await loadPdfjs();
+    const buf = await file.arrayBuffer();
+    doc = await highlightPdfjsLib.getDocument({ data: buf }).promise;
+  } catch (err) {
+    showAlert('Gagal render preview: ' + err.message);
+    return;
+  }
+
+  state.highlightDoc = doc;
+  const count = Math.min(doc.numPages, HIGHLIGHT_MAX_PAGES);
+  const boxW = Math.max(320, viewer.clientWidth - 40);
+  viewer.innerHTML = '';
+
+  highlightObserver = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const entry = state.highlightPages.find((p) => p.wrap === e.target);
+        if (entry) ensureHighlightPage(entry);
+        highlightObserver.unobserve(e.target);
+      }
+    },
+    { root: viewer, rootMargin: '400px' }
+  );
+
+  for (let i = 1; i <= count; i += 1) {
+    const page = await doc.getPage(i);
+    const base = page.getViewport({ scale: 1 });
+    const scale = Math.min(boxW / base.width, 1.5);
+    const viewport = page.getViewport({ scale });
+
+    const wrap = document.createElement('div');
+    wrap.className = 'hl-page';
+    wrap.style.setProperty('--scale-factor', String(scale));
+    wrap.style.width = viewport.width + 'px';
+    wrap.style.height = viewport.height + 'px';
+
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    const hlLayer = document.createElement('div');
+    hlLayer.className = 'hl-highlights';
+
+    const textEl = document.createElement('div');
+    textEl.className = 'textLayer';
+
+    const badge = document.createElement('span');
+    badge.className = 'hl-page-badge';
+    badge.textContent = String(i);
+
+    wrap.append(canvas, hlLayer, textEl, badge);
+    viewer.appendChild(wrap);
+
+    state.highlightPages.push({
+      index: i - 1,
+      page,
+      viewport,
+      wrap,
+      hlLayer,
+      textEl,
+      renderPromise: null,
+      renderFailed: false,
+    });
+    highlightObserver.observe(wrap);
+  }
+
+  if (doc.numPages > count) {
+    const note = document.createElement('p');
+    note.className = 'hint grid-note';
+    note.textContent = `Viewer dibatasi ${count} halaman pertama (PDF punya ${doc.numPages} halaman).`;
+    viewer.appendChild(note);
+  }
+}
+
+function ensureHighlightPage(entry) {
+  if (entry.renderPromise) return entry.renderPromise;
+  entry.renderPromise = (async () => {
+    try {
+      const ctx = entry.wrap.querySelector('canvas').getContext('2d');
+      await entry.page.render({ canvasContext: ctx, viewport: entry.viewport }).promise;
+      const textLayer = new highlightPdfjsLib.TextLayer({
+        textContentSource: entry.page.streamTextContent(),
+        container: entry.textEl,
+        viewport: entry.viewport,
+      });
+      await textLayer.render();
+    } catch (err) {
+      entry.renderFailed = true;
+      if (!ensureHighlightPage._warned) {
+        ensureHighlightPage._warned = true;
+        showAlert('Gagal merender sebagian halaman: ' + err.message);
+      }
+    }
+  })();
+  return entry.renderPromise;
+}
+
+function findPageForClientRect(r) {
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  for (const entry of state.highlightPages) {
+    const wr = entry.wrap.getBoundingClientRect();
+    if (cx >= wr.left && cx <= wr.right && cy >= wr.top && cy <= wr.bottom) return entry;
+  }
+  return null;
+}
+
+function clientRectToPdf(entry, r) {
+  const wr = entry.wrap.getBoundingClientRect();
+  const p1 = entry.viewport.convertToPdfPoint(r.left - wr.left, r.top - wr.top);
+  const p2 = entry.viewport.convertToPdfPoint(r.right - wr.left, r.bottom - wr.top);
+  return {
+    page: entry.index,
+    x: Math.min(p1[0], p2[0]),
+    y: Math.min(p1[1], p2[1]),
+    w: Math.abs(p2[0] - p1[0]),
+    h: Math.abs(p2[1] - p1[1]),
+  };
+}
+
+function rectsTouch(a, b) {
+  const yOverlap = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  if (yOverlap < 1) return false;
+  const xGap = Math.max(Math.max(a.x, b.x) - Math.min(a.x + a.w, b.x + b.w), 0);
+  return xGap <= 2;
+}
+
+function mergeHighlightRect(rect, group) {
+  const m = { page: rect.page, x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+  let mergedAny = true;
+  while (mergedAny) {
+    mergedAny = false;
+    for (let i = state.highlights.length - 1; i >= 0; i -= 1) {
+      const h = state.highlights[i];
+      if (h.group !== group || h.page !== m.page) continue;
+      if (!rectsTouch(m, h)) continue;
+      const x2 = Math.max(m.x + m.w, h.x + h.w);
+      const y2 = Math.max(m.y + m.h, h.y + h.h);
+      m.x = Math.min(m.x, h.x);
+      m.y = Math.min(m.y, h.y);
+      m.w = x2 - m.x;
+      m.h = y2 - m.y;
+      state.highlights.splice(i, 1);
+      mergedAny = true;
+    }
+  }
+  return m;
+}
+
+function pushHighlight(rect, source, group) {
+  if (rect.w < 0.5 || rect.h < 0.5) return 0;
+  if (state.highlights.length >= HIGHLIGHT_MAX) {
+    if (!pushHighlight._capped) {
+      pushHighlight._capped = true;
+      showAlert(`Maksimal ${HIGHLIGHT_MAX} highlight tercapai.`);
+    }
+    return 0;
+  }
+  const dup = state.highlights.some(
+    (h) =>
+      h.page === rect.page &&
+      Math.abs(h.x - rect.x) < 0.5 &&
+      Math.abs(h.y - rect.y) < 0.5 &&
+      Math.abs(h.w - rect.w) < 0.5 &&
+      Math.abs(h.h - rect.h) < 0.5
+  );
+  if (dup) return 0;
+  const m = mergeHighlightRect(rect, group);
+  state.highlights.push({
+    page: m.page,
+    x: m.x,
+    y: m.y,
+    w: m.w,
+    h: m.h,
+    source,
+    group,
+  });
+  return 1;
+}
+
+function addHighlightRectsFromRange(range, knownEntry, source, group) {
+  let added = 0;
+  for (const r of range.getClientRects()) {
+    if (r.width < 1 || r.height < 1) continue;
+    const entry = knownEntry || findPageForClientRect(r);
+    if (!entry) continue;
+    added += pushHighlight(clientRectToPdf(entry, r), source, group);
+  }
+  return added;
+}
+
+function renderHighlightOverlays() {
+  const color = $('#highlight-color').value;
+  const opacity = parseInt($('#highlight-opacity').value, 10) / 100;
+  for (const entry of state.highlightPages) {
+    entry.hlLayer.innerHTML = '';
+    for (const h of state.highlights) {
+      if (h.page !== entry.index) continue;
+      const a = entry.viewport.convertToViewportPoint(h.x, h.y);
+      const b = entry.viewport.convertToViewportPoint(h.x + h.w, h.y + h.h);
+      const div = document.createElement('div');
+      div.className = 'hl-mark';
+      div.style.left = Math.min(a[0], b[0]) + 'px';
+      div.style.top = Math.min(a[1], b[1]) + 'px';
+      div.style.width = Math.abs(b[0] - a[0]) + 'px';
+      div.style.height = Math.abs(b[1] - a[1]) + 'px';
+      div.style.backgroundColor = color;
+      div.style.opacity = String(opacity);
+      entry.hlLayer.appendChild(div);
+    }
+  }
+}
+
+function updateHighlightToolbar() {
+  const groups = new Set(state.highlights.map((h) => h.group));
+  const n = groups.size;
+  $('#highlight-count').textContent = n + ' sorotan';
+  highlightUndoBtn.disabled = n === 0;
+  highlightClearBtn.disabled = n === 0;
+  highlightBtn.disabled = n === 0 || !state.highlightFile;
+}
+
+highlightViewer.addEventListener('mouseup', () => {
+  if (highlightMode() !== 'cursor') return;
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+  let added = 0;
+  const group = ++highlightGroupCounter;
+  for (let i = 0; i < sel.rangeCount; i += 1) {
+    added += addHighlightRectsFromRange(sel.getRangeAt(i), null, 'cursor', group);
+  }
+  if (added > 0) {
+    sel.removeAllRanges();
+    renderHighlightOverlays();
+    updateHighlightToolbar();
+  }
+});
+
+highlightUndoBtn.addEventListener('click', () => {
+  if (!state.highlights.length) return;
+  const lastGroup = state.highlights[state.highlights.length - 1].group;
+  state.highlights = state.highlights.filter((h) => h.group !== lastGroup);
+  renderHighlightOverlays();
+  updateHighlightToolbar();
+});
+
+highlightClearBtn.addEventListener('click', () => {
+  state.highlights = [];
+  renderHighlightOverlays();
+  updateHighlightToolbar();
+});
+
+document.querySelectorAll('input[name="highlight-mode"]').forEach((r) => {
+  r.addEventListener('change', () => {
+    $('#highlight-search-row').hidden = highlightMode() !== 'search';
+  });
+});
+
+$('#highlight-color').addEventListener('input', renderHighlightOverlays);
+$('#highlight-opacity').addEventListener('input', () => {
+  $('#highlight-opacity-val').textContent = $('#highlight-opacity').value + '%';
+  renderHighlightOverlays();
+});
+
+function collectTextLines(root) {
+  const lines = [];
+  let cur = [];
+  const walk = (node) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (child.nodeValue) cur.push(child);
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        if (child.tagName === 'BR') {
+          if (cur.length) { lines.push(cur); cur = []; }
+        } else {
+          walk(child);
+        }
+      }
+    }
+  };
+  walk(root);
+  if (cur.length) lines.push(cur);
+  return lines;
+}
+
+function rangeFromIndexes(nodes, start, end) {
+  let acc = 0;
+  let startSet = false;
+  const range = document.createRange();
+  for (const node of nodes) {
+    const len = node.nodeValue ? node.nodeValue.length : 0;
+    const next = acc + len;
+    if (!startSet && start >= acc && start < next) {
+      range.setStart(node, start - acc);
+      startSet = true;
+    }
+    if (startSet && end > acc && end <= next) {
+      range.setEnd(node, end - acc);
+      return range;
+    }
+    acc = next;
+  }
+  return null;
+}
+
+function searchInPage(entry, query, group) {
+  let added = 0;
+  for (const nodes of collectTextLines(entry.textEl)) {
+    const full = nodes.map((n) => n.nodeValue || '').join('');
+    if (!full) continue;
+    const lowered = full.toLowerCase();
+    const canCaseFold = lowered.length === full.length;
+    const haystack = canCaseFold ? lowered : full;
+    const needle = canCaseFold ? query.toLowerCase() : query;
+    let from = 0;
+    let idx;
+    while ((idx = haystack.indexOf(needle, from)) !== -1) {
+      from = idx + needle.length;
+      const range = rangeFromIndexes(nodes, idx, idx + needle.length);
+      if (range) added += addHighlightRectsFromRange(range, entry, 'search', group);
+      if (state.highlights.length >= HIGHLIGHT_MAX) return added;
+    }
+  }
+  return added;
+}
+
+highlightSearchBtn.dataset.label = 'Cari & sorot';
+highlightSearchBtn.addEventListener('click', async () => {
+  const q = $('#highlight-query').value.trim();
+  if (!q) {
+    showAlert('Masukkan teks yang dicari.');
+    return;
+  }
+  if (!state.highlightDoc) return;
+
+  hideAlert();
+  setBusy(highlightSearchBtn, true, 'Mencari…');
+  try {
+    state.highlights = state.highlights.filter((h) => h.source !== 'search');
+    const group = ++highlightGroupCounter;
+    let found = 0;
+    for (const entry of state.highlightPages) {
+      await ensureHighlightPage(entry);
+      if (state.highlights.length >= HIGHLIGHT_MAX) break;
+      found += searchInPage(entry, q, group);
+    }
+    renderHighlightOverlays();
+    updateHighlightToolbar();
+    if (found === 0) {
+      showAlert('Teks tidak ditemukan di dalam PDF.', 'info');
+    } else {
+      showAlert(`${found} bagian teks di-highlight.`, 'info');
+    }
+  } catch (err) {
+    showAlert('Gagal mencari teks: ' + err.message);
+  } finally {
+    setBusy(highlightSearchBtn, false);
+  }
+});
+
+highlightBtn.dataset.label = 'Terapkan & Unduh';
+highlightBtn.addEventListener('click', async () => {
+  if (!state.highlightFile) return;
+  if (!state.highlights.length) {
+    showAlert('Belum ada teks yang disorot.');
+    return;
+  }
+
+  hideAlert();
+  $('#highlight-result').hidden = true;
+
+  const rects = state.highlights.map((h) => ({
+    page: h.page,
+    x: Math.round(h.x * 100) / 100,
+    y: Math.round(h.y * 100) / 100,
+    w: Math.round(h.w * 100) / 100,
+    h: Math.round(h.h * 100) / 100,
+  }));
+
+  const fd = new FormData();
+  fd.append('file', state.highlightFile);
+  fd.append('rects', JSON.stringify(rects));
+  fd.append('color', $('#highlight-color').value);
+  fd.append('opacity', String(parseInt($('#highlight-opacity').value, 10) / 100));
+
+  setBusy(highlightBtn, true, 'Memproses…');
+  try {
+    const res = await apiPost('/api/highlight', fd);
+    const url = await downloadUrl(res);
+    const link = $('#highlight-download');
+    link.href = url;
+    let name = $('#highlight-filename').value.trim() || 'hasil-highlight.pdf';
+    if (!/\.pdf$/i.test(name)) name += '.pdf';
+    link.download = name;
+    $('#highlight-result').hidden = false;
+    showAlert('Highlight ditambahkan ke PDF.', 'info');
+  } catch (err) {
+    showAlert(err.message);
+  } finally {
+    setBusy(highlightBtn, false);
+  }
+});

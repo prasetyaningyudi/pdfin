@@ -9,6 +9,7 @@ const { compressPdf, QUALITIES } = require('../services/compress');
 const { extractText } = require('../services/extractText');
 const { organizePages } = require('../services/organize');
 const { addWatermark, addPageNumbers } = require('../services/decorate');
+const { highlightRects } = require('../services/highlight');
 
 const router = express.Router();
 
@@ -200,6 +201,26 @@ router.post(
         color: req.body.color,
       });
       sendPdf(res, buffer, 'hasil-nomor-halaman.pdf');
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.post(
+  '/highlight',
+  upload.single('file'),
+  handleMulterError,
+  validatePdfFiles,
+  async (req, res, next) => {
+    try {
+      const rects = parseJsonField(req.body.rects, 'rects', null);
+      const buffer = await highlightRects(req.file.buffer, {
+        rects,
+        color: req.body.color,
+        opacity: req.body.opacity,
+      });
+      sendPdf(res, buffer, 'hasil-highlight.pdf');
     } catch (err) {
       next(err);
     }

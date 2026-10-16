@@ -224,4 +224,11 @@ async function addPageNumbers(buffer, opts) {
   }
 }
 
-module.exports = { addWatermark, addPageNumbers, WATERMARK_STYLES, NUMBER_POSITIONS };
+module.exports = {
+  addWatermark,
+  addPageNumbers,
+  WATERMARK_STYLES,
+  NUMBER_POSITIONS,
+  parseColor,
+  clampNum,
+};

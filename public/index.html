@@ -20,6 +20,7 @@
         <button class="nav-tab" id="tab-decorate" role="tab" aria-selected="false" aria-controls="panel-decorate">Watermark &amp; Nomor</button>
         <button class="nav-tab" id="tab-compress" role="tab" aria-selected="false" aria-controls="panel-compress">Kompres</button>
         <button class="nav-tab" id="tab-extract" role="tab" aria-selected="false" aria-controls="panel-extract">Ekstrak Teks</button>
+        <button class="nav-tab" id="tab-highlight" role="tab" aria-selected="false" aria-controls="panel-highlight">Sorot Teks</button>
       </nav>
       <button class="nav-hamburger" aria-label="Buka menu" aria-expanded="false" aria-controls="navbar-menu" hidden>☰</button>
     </div>
@@ -305,6 +306,71 @@
             <a id="extract-download" class="btn success" download>Unduh .txt</a>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- HIGHLIGHT PANEL -->
+    <section id="panel-highlight" class="panel" role="tabpanel" aria-labelledby="tab-highlight">
+      <div class="dropzone" id="highlight-drop" tabindex="0">
+        <p><strong>Tarik file PDF ke sini</strong> atau klik untuk memilih</p>
+        <p class="hint">Satu file PDF — sorot teks dengan cursor atau cari kata</p>
+        <input type="file" id="highlight-input" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="highlight-info" class="split-info" hidden>
+        <p><span id="highlight-name"></span> — <span id="highlight-pages" class="badge"></span></p>
+        <p class="hint">Geser cursor di atas teks untuk menyorot. PDF scan/gambar tanpa teks tidak bisa disorot.</p>
+      </div>
+
+      <div id="highlight-options" hidden>
+        <fieldset class="mode-picker">
+          <legend>Cara memilih teks</legend>
+          <label>
+            <input type="radio" name="highlight-mode" value="cursor" checked>
+            Sorot dengan cursor <span class="hint">(geser mouse di atas teks di bawah)</span>
+          </label>
+          <label>
+            <input type="radio" name="highlight-mode" value="search">
+            Ketik teks <span class="hint">(semua kemunculan otomatis di-highlight)</span>
+          </label>
+        </fieldset>
+
+        <div id="highlight-search-row" class="search-row" hidden>
+          <label class="inline-field grow">
+            Teks yang dicari:
+            <input type="text" id="highlight-query" placeholder="misal: laporan keuangan" maxlength="200">
+          </label>
+          <button id="highlight-search-btn" class="btn secondary" type="button">Cari &amp; sorot</button>
+        </div>
+
+        <div class="search-row">
+          <label class="inline-field">
+            Warna:
+            <input type="color" id="highlight-color" value="#ffff00">
+          </label>
+          <label class="inline-field">
+            Opasitas: <span id="highlight-opacity-val" class="hint">40%</span>
+            <input type="range" id="highlight-opacity" min="5" max="100" value="40">
+          </label>
+        </div>
+
+        <div id="highlight-viewer" class="highlight-viewer" hidden></div>
+
+        <div class="actions highlight-toolbar">
+          <span id="highlight-count" class="badge">0 sorotan</span>
+          <button id="highlight-undo" class="btn secondary" type="button" disabled>Urungkan</button>
+          <button id="highlight-clear" class="btn secondary" type="button" disabled>Bersihkan</button>
+          <label class="inline-field">
+            Nama file hasil:
+            <input type="text" id="highlight-filename" value="hasil-highlight.pdf" maxlength="80">
+          </label>
+          <button id="highlight-btn" class="btn primary" disabled>Terapkan &amp; Unduh</button>
+        </div>
+      </div>
+
+      <div id="highlight-result" class="result" hidden>
+        <p>Selesai! Highlight ditambahkan.</p>
+        <a id="highlight-download" class="btn success" download>Unduh hasil PDF</a>
       </div>
     </section>
 
